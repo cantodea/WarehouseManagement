@@ -49,6 +49,9 @@
       </tbody>
     </table>
 
+
+
+
     <!-- 发货模态框 -->
     <div v-if="showShippingModal" class="modal">
       <div class="modal-content">
@@ -89,6 +92,8 @@
         </form>
       </div>
   </div>
+
+
 
   <div>
     <!-- 本地仓库操作日志部分 -->
@@ -175,7 +180,13 @@
 </template>
 
 <script>
+
+
+
 export default {
+  components: {
+
+  },
   data() {
     return {
       items: [],
@@ -225,16 +236,21 @@ export default {
     };
   },
   mounted() {
+    console.log("LocalWarehouse.vue: 组件挂载");
     this.fetchItems();
     this.fetchLocalLogs(); // 加载组件时获取日志
+
+    console.log("<stock-chart> 组件是否渲染:", this.$refs.stockChartRef);
   },
   computed: {
+    
     filteredLogs() {
       return this.logs.filter(log => {
         return (this.selectedOperatedBy === '' || log.operatedBy === this.selectedOperatedBy) &&
                (this.selectedAction === '' || log.action === this.selectedAction);
       });
-    }
+    },
+    
   },
   methods: {
     openShippingModal(item) {
@@ -356,22 +372,26 @@ export default {
     },
 
     fetchLocalLogs() {
-      this.$axios.get('/api/local-logs')
-        .then(response => {
-          // 首先，保存原始日志数据
-          this.logs = response.data;
+    this.$axios.get('/api/local-logs')
+      .then(response => {
+        console.log("LocalWarehouse.vue: 获取日志数据", response.data);
+        this.logs = response.data;
+      
 
-          // 接下来，根据时间戳对日志进行倒序排序
-          this.logs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        // 根据时间戳对日志进行倒序排序
+        this.logs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
-          // 从排序后的日志数据中提取唯一的操作人和操作类型
-          this.uniqueOperators = [...new Set(this.logs.map(log => log.operatedBy))];
-          this.uniqueActions = [...new Set(this.logs.map(log => log.action))];
-        })
-        .catch(error => {
-          console.error("Error fetching logs:", error);
-        });
-    },
+        // 提取唯一的操作人和操作类型
+        this.uniqueOperators = [...new Set(this.logs.map(log => log.operatedBy))];
+        this.uniqueActions = [...new Set(this.logs.map(log => log.action))];
+
+
+      })
+      .catch(error => {
+        console.error("Error fetching logs:", error);
+      });
+  },
+
 
     openAdjustStockModal(item) {
     this.showAdjustStockModal = true;

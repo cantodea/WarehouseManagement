@@ -37,14 +37,15 @@
     <!-- 选择仓库界面 -->
     <div v-if="isLoggedIn">
       <select v-model="selectedWarehouse">
-        <option disabled value="">请选择仓库</option>
+        <option disabled value="">请选择功能</option>
         <option value="local">本地仓库</option>
         <option value="amazon">亚马逊仓库</option>
+        <option value="dataAnalysis">数据分析</option>
       </select>
 
-      <!-- 根据选择显示对应的仓库组件 -->
       <local-warehouse v-if="selectedWarehouse === 'local'"></local-warehouse>
       <amazon-warehouse v-if="selectedWarehouse === 'amazon'"></amazon-warehouse>
+      <data-analysis v-if="selectedWarehouse === 'dataAnalysis'"></data-analysis>
     </div>
   </div>
 </template>
@@ -52,11 +53,13 @@
 <script>
 import LocalWarehouse from './LocalWarehouse.vue';
 import AmazonWarehouse from './AmazonWarehouse.vue';
+import DataAnalysis from './DataAnalysis.vue';
 
 export default {
   components: {
     LocalWarehouse,
-    AmazonWarehouse
+    AmazonWarehouse,
+    DataAnalysis
   },
   data() {
     return {
