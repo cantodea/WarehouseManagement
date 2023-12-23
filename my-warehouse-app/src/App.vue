@@ -41,11 +41,13 @@
         <option value="local">本地仓库</option>
         <option value="amazon">亚马逊仓库</option>
         <option value="dataAnalysis">数据分析</option>
+        <option value="supplierManagement">供应商管理</option>
       </select>
 
       <local-warehouse v-if="selectedWarehouse === 'local'"></local-warehouse>
       <amazon-warehouse v-if="selectedWarehouse === 'amazon'"></amazon-warehouse>
       <data-analysis v-if="selectedWarehouse === 'dataAnalysis'"></data-analysis>
+      <supplier-management v-if="selectedWarehouse === 'supplierManagement'"></supplier-management> <!-- 对应的组件 -->
     </div>
   </div>
 </template>
@@ -54,12 +56,14 @@
 import LocalWarehouse from './LocalWarehouse.vue';
 import AmazonWarehouse from './AmazonWarehouse.vue';
 import DataAnalysis from './DataAnalysis.vue';
+import SupplierManagement from './SupplierManagement.vue'; // 导入组件
 
 export default {
   components: {
     LocalWarehouse,
     AmazonWarehouse,
-    DataAnalysis
+    DataAnalysis,
+    SupplierManagement  // 注册组件
   },
   data() {
     return {

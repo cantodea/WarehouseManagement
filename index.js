@@ -14,7 +14,7 @@ app.use(express.json());
 const uri = "mongodb://localhost:27017";
 const client = new MongoClient(uri);
 
-let database, localWarehouse, amazonWarehouse, amazonLog, localLog, usersCollection;
+let database, localWarehouse, amazonWarehouse, amazonLog, localLog, usersCollection,suppliersCollection,ordersCollection;
 
 
 const authenticateToken = (req, res, next) => {
@@ -43,6 +43,9 @@ const authenticateToken = (req, res, next) => {
         amazonLog = database.collection("amazonLog");
         localLog = database.collection("localLog");
         usersCollection = database.collection("users"); // 添加这行来初始化用户集合
+        suppliersCollection = database.collection("Suppliers"); // 初始化供应商集合
+        ordersCollection = database.collection("Orders");
+
 
         // 使用用户路由，并传递 usersCollection
         app.use('/api', require('./userRoutes')(usersCollection));
@@ -541,6 +544,100 @@ app.post('/api/change-password', authenticateToken, async (req, res) => {
 });
 
 
+
+app.get('/api/suppliers', async (req, res) => {
+    try {
+        const suppliers = await suppliersCollection.find({}).toArray();
+        res.json(suppliers);
+    } catch (err) {
+        console.error("Error fetching suppliers", err);
+        res.status(500).send("Internal Server Error");
+    }
+});
+
+app.post('/api/suppliers', authenticateToken,async (req, res) => {
+    const newSupplier = req.body;
+
+    try {
+        const result = await suppliersCollection.insertOne(newSupplier);
+        res.status(201).json({ message: "Supplier created successfully", id: result.insertedId });
+    } catch (err) {
+        console.error("Error creating new supplier", err);
+        res.status(500).send("Internal Server Error");
+    }
+});
+
+
+// API 端点：创建新订单
+app.post('/api/orders', authenticateToken, async (req, res) => {
+    try {
+        const newOrder = req.body;
+        const result = await ordersCollection.insertOne(newOrder);
+        
+        // 您可以在这里记录操作日志或执行其他必要的操作
+
+        res.status(201).json({ message: "Order created successfully", orderId: result.insertedId });
+    } catch (err) {
+        console.error("Error creating new order", err);
+        res.status(500).send("Internal Server Error");
+    }
+});
+
+app.get('/api/orders', authenticateToken, async (req, res) => {
+    try {
+        const orders = await ordersCollection.find({}).toArray();
+        res.json(orders);
+    } catch (err) {
+        console.error("Error fetching orders", err);
+        res.status(500).send("Internal Server Error");
+    }
+});
+
+// API 端点：更新本地仓库中的产品的在途订单数量
+app.post('/api/local-items/update-on-order', authenticateToken, async (req, res) => {
+    try {
+        const { itemId, onOrderQuantity } = req.body;
+        let objectId;
+        try {
+            objectId = new ObjectId(itemId);
+        } catch (err) {
+            return res.status(400).send("Invalid itemId format");
+        }
+
+        const currentItem = await localWarehouse.findOne({ _id: objectId });
+        if (!currentItem) {
+            return res.status(404).send("Item not found");
+        }
+
+        const updateResult = await localWarehouse.updateOne(
+            { _id: objectId },
+            { $set: { onOrderQuantity: onOrderQuantity }}
+        );
+
+        if (!updateResult.matchedCount) {
+            return res.status(404).send("Item not found");
+        }
+
+        // 添加操作日志
+        const operatedBy = req.user.username; // 获取当前操作用户
+        const logEntry = {
+            itemId: objectId,
+            action: 'On Order Quantity Updated',
+            details: {
+                before: currentItem.onOrderQuantity,
+                after: onOrderQuantity
+            },
+            operatedBy,
+            timestamp: new Date()
+        };
+        await localLog.insertOne(logEntry);
+
+        res.status(200).send("On order quantity updated successfully");
+    } catch (err) {
+        console.error("Error updating on order quantity", err);
+        res.status(500).send("Internal Server Error");
+    }
+});
 
 
 

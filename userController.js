@@ -26,7 +26,7 @@ module.exports = function(usersCollection) {
                 const token = jwt.sign(
                     { id: user._id, username: user.username }, // 在这里添加了 username
                     'yourSecretKey',
-                    { expiresIn: '1h' }
+                    { expiresIn: '3h' }
                 );
 
                 // 从响应中移除密码
