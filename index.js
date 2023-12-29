@@ -46,6 +46,7 @@ const authenticateToken = (req, res, next) => {
         usersCollection = database.collection("users"); // 添加这行来初始化用户集合
         suppliersCollection = database.collection("Suppliers"); // 初始化供应商集合
         ordersCollection = database.collection("Orders");
+        returnsCollection = database.collection("returnsCollection");
 
 
         // 使用用户路由，并传递 usersCollection
@@ -713,6 +714,57 @@ app.post('/api/track-shipment', authenticateToken, async (req, res) => {
     }
 });
 
+
+
+// 添加退货记录
+app.post('/api/returns', authenticateToken, async (req, res) => {
+    try {
+        const returnData = req.body;
+        const result = await returnsCollection.insertOne(returnData);
+
+        // 检查本地仓库是否有相同SKU的产品
+        const item = await localWarehouse.findOne({ sku: returnData.sku });
+        if (item) {
+            // 如果找到，更新Revoked Stock
+            await localWarehouse.updateOne(
+                { sku: returnData.sku },
+                { $inc: { revokedStock: returnData.quantity }}
+            );
+
+            // 添加日志到localLog
+            const logEntry = {
+                timestamp: new Date(),
+                action: 'Return Processed',
+                details: {
+                    productName: returnData.productName,
+                    sku: returnData.sku,
+                    quantity: returnData.quantity,
+                    reason: returnData.reason,
+                    updatedRevokedStock: item.revokedStock + returnData.quantity
+                },
+                operatedBy: req.user.username // 从认证中获取操作员信息
+            };
+            await localLog.insertOne(logEntry);
+        }
+
+        res.status(201).send({ message: "Return processed successfully", id: result.insertedId });
+    } catch (err) {
+        console.error("Error processing return", err);
+        res.status(500).send("Internal Server Error");
+    }
+});
+
+
+// 获取所有退货记录
+app.get('/api/returns', authenticateToken, async (req, res) => {
+    try {
+        const returns = await returnsCollection.find({}).toArray();
+        res.json(returns);
+    } catch (err) {
+        console.error("Error fetching return records", err);
+        res.status(500).send("Internal Server Error");
+    }
+});
 
 // 启动服务器
 const PORT = 3000;

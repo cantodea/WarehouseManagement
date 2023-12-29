@@ -16,6 +16,18 @@
   
         <button type="submit">提交退货</button>
       </form>
+
+      <div class="return-records">
+      <h2>退货记录</h2>
+      <ul>
+        <li v-for="record in returnRecords" :key="record._id">
+          <div>产品名称: {{ record.productName }}</div>
+          <div>SKU: {{ record.sku }}</div>
+          <div>数量: {{ record.quantity }}</div>
+          <div>原因: {{ record.reason }}</div>
+        </li>
+      </ul>
+    </div>
     </div>
   </template>
   
@@ -28,46 +40,114 @@
           sku: '',
           quantity: 1,
           reason: ''
-        }
+        },
+        returnRecords: []  // 新增：存储退货记录
       };
     },
     methods: {
       submitReturn() {
-        console.log('提交退货信息：', this.returnData);
-        // 在这里发送退货信息到后端
-        // this.$axios.post('/api/returns', this.returnData)
-        //  .then(response => {
-        //    alert('退货成功');
-        //    // 清空表单或其他操作
-        //  })
-        //  .catch(error => {
-        //    console.error('退货失败：', error);
-        //  });
-      }
+      // 使用 axios 发送 POST 请求到后端
+      this.$axios.post('/api/returns', this.returnData)
+    .then(response => { // 使用 response 变量
+      console.log('退货成功，服务器响应:', response);
+      alert('退货成功');
+      // 清空表单
+      this.returnData = { productName: '', sku: '', quantity: 1, reason: '' };
+    })
+    .catch(error => {
+      console.error('退货失败：', error);
+      alert('退货失败：' + error.response.data.message);
+    });
+    },
+
+    fetchReturnRecords() {
+      this.$axios.get('/api/returns')
+        .then(response => {
+          this.returnRecords = response.data;
+        })
+        .catch(error => {
+          console.error('获取退货记录失败：', error);
+        });
+    }
+  },
+  mounted() {
+    this.fetchReturnRecords();  // 组件挂载后获取退货记录
+  
+  
     }
   };
   </script>
   
   <style>
-  .supplier-selection {
+  .return-management {
+    margin: 20px;
+  }
+  
+  .return-management h1 {
     margin-bottom: 20px;
   }
-  .supplier-details {
-    margin-top: 20px;
+  
+  .return-management form {
+    max-width: 600px;
+    margin: auto;
+    padding: 20px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    background-color: #f9f9f9;
   }
-  .order-list {
-    margin-top: 20px;
-  }
-  .order-list h2 {
+  
+  .return-management label {
+    display: block;
     margin-bottom: 10px;
   }
-  .order-list ul {
-    list-style-type: none;
-    padding: 0;
-  }
-  .order-list li {
-    margin-bottom: 15px;
+  
+  .return-management input,
+  .return-management textarea {
+    width: 100%;
+    padding: 8px;
+    margin-bottom: 20px;
+    box-sizing: border-box;
     border: 1px solid #ccc;
-    padding: 10px;
+    border-radius: 4px;
   }
-</style>
+  
+  .return-management button {
+    padding: 10px 15px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+  }
+  
+  .return-management button:hover {
+    background-color: #0056b3;
+  }
+  
+  .return-management button[disabled] {
+    background-color: #aaa;
+    cursor: not-allowed;
+  }
+
+
+  .return-records {
+  margin-top: 40px;
+}
+
+.return-records h2 {
+  margin-bottom: 20px;
+}
+
+.return-records ul {
+  list-style: none;
+  padding: 0;
+}
+
+.return-records li {
+  margin-bottom: 10px;
+  border: 1px solid #ddd;
+  padding: 10px;
+  border-radius: 4px;
+}
+  </style>
