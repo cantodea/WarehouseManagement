@@ -88,57 +88,54 @@ export default {
       });
     },
     processData() {
-    let combinedData = {};
-    this.currentStock = {}; // 重置当前库存状态
+  let combinedData = {};
+  this.currentStock = {}; // 重置当前库存状态
 
-    const updateInventory = (log, isIncrease) => {
-      const productName = log.details.productName || log.details.sku;
-      if (!this.currentStock[productName]) {
-        this.currentStock[productName] = 0;
+  // 更新库存的函数
+  const updateCurrentStock = (productName, quantity) => {
+    this.currentStock[productName] = quantity;
+  };
+
+  // 处理每条日志
+  const processLogs = logs => {
+    logs.forEach(log => {
+      const date = new Date(log.timestamp).toLocaleDateString();
+      if (!combinedData[date]) {
+        combinedData[date] = { inventoryQuantity: 0, shippedQuantity: 0 };
       }
-      this.currentStock[productName] += isIncrease ? log.details.quantityChange : -log.details.quantityChange;
-    };
 
-    const processLogs = logs => {
-      logs.forEach(log => {
-        const date = new Date(log.timestamp).toLocaleDateString();
-        if (!combinedData[date]) {
-          combinedData[date] = { inventoryQuantity: 0, shippedQuantity: 0 };
-        }
+      const productName = log.details.productName || log.details.sku;
+      const quantityChange = log.details.quantityChange || 0;
+      const actualStock = log.details.after?.actualStock || log.details.actualStock || this.currentStock[productName] || 0;
 
-        switch(log.action) {
-          case 'Item Added':
-          case 'Stock Adjusted':
-            // 直接使用库存数量，而不是变化量
-            this.currentStock[log.details.productName || log.details.sku] = log.details.after?.actualStock || log.details.actualStock || 0;
-            combinedData[date].inventoryQuantity = this.currentStock[log.details.productName || log.details.sku];
-            break;
-          case 'Item Shipped':
-            combinedData[date].shippedQuantity += log.details?.shippingQuantity || 0;
-            // 发货后减少库存数量
-            this.currentStock[log.details.productName || log.details.sku] -= log.details?.shippingQuantity || 0;
-            break;
-          case 'Quantity Increased':
-            updateInventory(log, true);
-            combinedData[date].inventoryQuantity = this.currentStock[log.details.productName || log.details.sku];
-            break;
-          case 'Quantity Decreased':
-            updateInventory(log, false);
-            combinedData[date].inventoryQuantity = this.currentStock[log.details.productName || log.details.sku];
-            break;
-        }
-      });
-    };
+      switch(log.action) {
+        case 'Item Added':
+        case 'Stock Adjusted':
+        case 'Quantity Increased':
+        case 'Quantity Decreased':
+          // 使用实际库存数量更新
+          updateCurrentStock(productName, actualStock);
+          combinedData[date].inventoryQuantity = actualStock;
+          break;
+        case 'Item Shipped':
+          combinedData[date].shippedQuantity += log.details?.shippingQuantity || 0;
+          // 发货后更新库存数量
+          updateCurrentStock(productName, actualStock - quantityChange);
+          combinedData[date].inventoryQuantity = actualStock - quantityChange;
+          break;
+      }
+    });
+  };
 
-    processLogs(this.localLogs);
-    processLogs(this.amazonLogs);
+  processLogs(this.localLogs);
+  processLogs(this.amazonLogs);
 
-    const labels = Object.keys(combinedData).sort();
-    const inventoryQuantities = labels.map(label => combinedData[label].inventoryQuantity);
-    const shippedQuantities = labels.map(label => combinedData[label].shippedQuantity);
+  const labels = Object.keys(combinedData).sort();
+  const inventoryQuantities = labels.map(label => combinedData[label].inventoryQuantity);
+  const shippedQuantities = labels.map(label => combinedData[label].shippedQuantity);
 
-    return { labels, inventoryQuantities, shippedQuantities };
-  },
+  return { labels, inventoryQuantities, shippedQuantities };
+},
     searchProduct() {
       if (this.searchQuery) {
         this.localLogs = this.allLocalLogs.filter(log => 

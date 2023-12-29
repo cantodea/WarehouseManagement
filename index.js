@@ -13,6 +13,7 @@ app.use(express.json());
 
 const uri = "mongodb://localhost:27017";
 const client = new MongoClient(uri);
+const axios = require('axios');
 
 let database, localWarehouse, amazonWarehouse, amazonLog, localLog, usersCollection,suppliersCollection,ordersCollection;
 
@@ -639,6 +640,78 @@ app.post('/api/local-items/update-on-order', authenticateToken, async (req, res)
     }
 });
 
+
+// API 端点：更新订单收货状态并调整库存，同时记录日志
+app.patch('/api/orders/:orderId/receive', authenticateToken, async (req, res) => {
+    const orderId = req.params.orderId;
+    try {
+        // 获取订单信息
+        const order = await ordersCollection.findOne({ _id: new ObjectId(orderId) });
+        if (!order) {
+            return res.status(404).send('订单未找到');
+        }
+
+        // 更新订单状态为已收货
+        await ordersCollection.updateOne({ _id: new ObjectId(orderId) }, { $set: { isReceived: true } });
+
+        // 更新本地仓库的库存
+        const updateResult = await localWarehouse.updateOne(
+            { sku: order.productId },
+            { 
+              $inc: {
+                onOrderQuantity: -order.quantity,
+                actualStock: order.quantity,
+                availableQuantity: order.quantity
+              } 
+            }
+        );
+
+        if (updateResult.matchedCount === 0) {
+            return res.status(404).send('本地库存项目未找到');
+        }
+
+        // 记录日志
+        const logEntry = {
+            action: 'Receive Order',
+            details: `Order ${orderId} received. Adjusted stock for SKU: ${order.productId}`,
+            operatedBy: req.user.username, // 从请求中获取操作人信息
+            timestamp: new Date()
+        };
+        await localLog.insertOne(logEntry);
+
+        res.send('订单已标记为收货并更新了本地库存及日志');
+    } catch (err) {
+        console.error("Error updating order status, local stock, and logging", err);
+        res.status(500).send("Internal Server Error");
+    }
+});
+
+
+app.post('/api/track-shipment', authenticateToken, async (req, res) => {
+    const { trackingNumber } = req.body;
+
+    try {
+        const track123Response = await axios.post('https://api.track123.com/gateway/open-api/', 
+        { 
+            "tracking_number": trackingNumber
+        }, 
+        {
+            headers: {
+                'Track123-Api-Secret': '4933ec0c275f4d78ab54f127ea84dd80',
+                'Content-Type': 'application/json'
+            }
+        });
+
+        res.json(track123Response.data);
+    } catch (error) {
+        console.error('Error calling Track123 API', error);
+        console.error(error.response.data); // 打印详细的响应错误信息
+        console.error(error.response.status); // 打印响应状态码
+        console.error(error.response.headers); // 打印响应头部信息
+
+        res.status(500).send('Error querying shipment: ' + error.message);
+    }
+});
 
 
 // 启动服务器

@@ -98,7 +98,10 @@
           产品ID: {{ order.productId }},
           数量: {{ order.quantity }},
           追踪号: {{ order.trackingNumber }},
-          快递: {{ order.carrier }}
+          快递: {{ order.carrier }},
+          状态: {{ order.isReceived ? '已收货' : '未收货' }}
+          <button v-if="!order.isReceived" @click="confirmReceipt(order)">确认收货</button>
+          <button @click="trackShipment(order.trackingNumber)">查询快递</button>
         </li>
       </ul>
     </div>
@@ -268,6 +271,34 @@ export default {
       .catch(error => {
         console.error('Error creating order', error);
       });
+    },
+
+    confirmReceipt(order) {
+    const orderId = order._id; // 提取订单的 _id
+    this.$axios.patch(`/api/orders/${orderId}/receive`, {}, {
+        headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+    })
+    .then(() => {
+        alert('订单已确认收货');
+        this.fetchOrders(); // 重新获取订单数据以更新界面
+    })
+    .catch(error => {
+        console.error('Error confirming order receipt', error);
+    });
+},
+
+    trackShipment(trackingNumber) {
+      this.$axios.post('/api/track-shipment', { trackingNumber })
+        .then(response => {
+          console.log(response.data); // 处理并显示快递信息
+          // 可以在这里更新UI或通知用户
+        })
+        .catch(error => {
+          console.error('Error querying shipment', error);
+          // 处理错误
+        });
     }
   },
 };
