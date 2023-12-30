@@ -2,7 +2,6 @@
   <div>
     <h1>数据分析</h1>
     <div>
-      <!-- 用户输入产品名称或SKU -->
       <input v-model="searchQuery" placeholder="输入产品名或SKU" />
       <button @click="searchProduct">查询</button>
     </div>
@@ -75,6 +74,12 @@ export default {
               data: chartData.shippedQuantities,
               borderColor: 'rgb(255, 99, 132)',
               tension: 0.1
+            },
+            {
+              label: '退货数量',
+              data: chartData.returnQuantities,
+              borderColor: 'rgb(153, 102, 255)',
+              tension: 0.1
             }
           ]
         },
@@ -91,21 +96,18 @@ export default {
   let combinedData = {};
   this.currentStock = {}; // 重置当前库存状态
 
-  // 更新库存的函数
   const updateCurrentStock = (productName, quantity) => {
     this.currentStock[productName] = quantity;
   };
 
-  // 处理每条日志
   const processLogs = logs => {
     logs.forEach(log => {
       const date = new Date(log.timestamp).toLocaleDateString();
       if (!combinedData[date]) {
-        combinedData[date] = { inventoryQuantity: 0, shippedQuantity: 0 };
+        combinedData[date] = { inventoryQuantity: 0, shippedQuantity: 0, returnQuantity: 0 };
       }
 
       const productName = log.details.productName || log.details.sku;
-      const quantityChange = log.details.quantityChange || 0;
       const actualStock = log.details.after?.actualStock || log.details.actualStock || this.currentStock[productName] || 0;
 
       switch(log.action) {
@@ -113,15 +115,19 @@ export default {
         case 'Stock Adjusted':
         case 'Quantity Increased':
         case 'Quantity Decreased':
-          // 使用实际库存数量更新
           updateCurrentStock(productName, actualStock);
           combinedData[date].inventoryQuantity = actualStock;
           break;
-        case 'Item Shipped':
-          combinedData[date].shippedQuantity += log.details?.shippingQuantity || 0;
-          // 发货后更新库存数量
+        case 'Item Shipped': {
+          // 新的作用域块
+          const quantityChange = log.details.quantityChange || 0;
           updateCurrentStock(productName, actualStock - quantityChange);
           combinedData[date].inventoryQuantity = actualStock - quantityChange;
+          combinedData[date].shippedQuantity += log.details?.shippingQuantity || 0;
+          break;
+        }
+        case 'Return Processed':
+          combinedData[date].returnQuantity += log.details.quantity; // 使用 log.details.quantity
           break;
       }
     });
@@ -133,9 +139,11 @@ export default {
   const labels = Object.keys(combinedData).sort();
   const inventoryQuantities = labels.map(label => combinedData[label].inventoryQuantity);
   const shippedQuantities = labels.map(label => combinedData[label].shippedQuantity);
+  const returnQuantities = labels.map(label => combinedData[label].returnQuantity);
 
-  return { labels, inventoryQuantities, shippedQuantities };
+  return { labels, inventoryQuantities, shippedQuantities, returnQuantities };
 },
+
     searchProduct() {
       if (this.searchQuery) {
         this.localLogs = this.allLocalLogs.filter(log => 
@@ -145,7 +153,6 @@ export default {
           log.details && (log.details.productName === this.searchQuery || log.details.sku === this.searchQuery)
         );
       } else {
-        // 重置为所有日志
         this.localLogs = this.allLocalLogs;
         this.amazonLogs = this.allAmazonLogs;
       }
@@ -156,7 +163,6 @@ export default {
 </script>
 
 <style>
-/* 添加样式 */
 table {
   width: 100%;
   border-collapse: collapse;

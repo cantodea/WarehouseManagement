@@ -766,6 +766,64 @@ app.get('/api/returns', authenticateToken, async (req, res) => {
     }
 });
 
+app.post('/api/confirm-return', authenticateToken, async (req, res) => {
+    try {
+        const { id, availableQuantity, defectiveQuantity } = req.body;
+        const totalQuantity = availableQuantity + defectiveQuantity;
+        const objectId = new ObjectId(id);
+
+        // 根据 id 找到退货记录
+        const returnRecord = await returnsCollection.findOne({ _id: objectId });
+
+        if (!returnRecord) {
+            return res.status(404).send('退货记录未找到');
+        }
+
+        if (returnRecord.quantity !== totalQuantity) {
+            return res.status(400).send('退货数量与入库数量不匹配');
+        }
+
+        // 更新本地仓库的库存
+        await localWarehouse.updateOne(
+            { sku: returnRecord.sku },
+            {
+                $inc: {
+                    availableQuantity: availableQuantity,
+                    defectiveStock: defectiveQuantity,
+                    revokedStock: -returnRecord.quantity,
+                    actualStock: totalQuantity
+                }
+            }
+        );
+
+        // 更新退货记录状态为已确认入库
+        await returnsCollection.updateOne(
+            { _id: objectId },
+            { $set: { isStockConfirmed: true } }
+        );
+
+        // 记录操作日志
+        const logEntry = {
+            timestamp: new Date(),
+            action: 'Return Confirmed',
+            details: {
+                sku: returnRecord.sku,
+                availableQuantityAdded: availableQuantity,
+                defectiveQuantityAdded: defectiveQuantity,
+                totalQuantity: totalQuantity
+            },
+            operatedBy: req.user.username
+        };
+        await localLog.insertOne(logEntry);
+
+        res.status(200).send('库存更新成功');
+    } catch (err) {
+        console.error("Error confirming return", err);
+        res.status(500).send("Internal Server Error");
+    }
+});
+
+
 // 启动服务器
 const PORT = 3000;
 app.listen(PORT, () => {
